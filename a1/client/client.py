@@ -13,14 +13,17 @@ import os
 def receive_message_ending_with_token(active_socket, buffer_size, eof_token):
     data = bytearray()
     while True:                             # keep receiving until we get '<EOF>'
-        packet = active_socket.recv(1024)
+        packet = active_socket.recv(buffer_size)
         data.extend(packet)
 
-        if packet.decode()[-5:] == '<EOF>':
-            data = data[:-5]
+        if packet.decode()[-len(eof_token):] == eof_token.decode():
+            data = data[:-len(eof_token)].decode()
             break
     
     return data 
+
+def send_message_ending_with_token(active_socket, message, eof_token):
+    active_socket.sendall(str.encode(message + eof_token.decode()))
 
 """
     1) Creates a socket object and connects to the server.
@@ -51,9 +54,8 @@ def initialize(host, port):
     :param eof_token: a token to indicate the end of the message.
 """
 def issue_cd(command_and_arg, client_socket, eof_token):
-
-    client_socket.sendall(command_and_arg.encode())   
-    print(receive_message_ending_with_token(client_socket, 1024, eof_token).decode())
+    send_message_ending_with_token(client_socket, command_and_arg, eof_token)  
+    print(receive_message_ending_with_token(client_socket, 1024, eof_token))
 
 """
     Sends the full mkdir command entered by the user to the server. The server creates the sub directory and sends back
@@ -64,8 +66,8 @@ def issue_cd(command_and_arg, client_socket, eof_token):
     :param eof_token: a token to indicate the end of the message.
 """
 def issue_mkdir(command_and_arg, client_socket, eof_token):
-    client_socket.sendall(command_and_arg.encode())   
-    print(receive_message_ending_with_token(client_socket, 1024, eof_token).decode())
+    send_message_ending_with_token(client_socket, command_and_arg, eof_token)
+    print(receive_message_ending_with_token(client_socket, 1024, eof_token))
 
 """
     Sends the full rm command entered by the user to the server. The server removes the file or directory and sends back
@@ -76,9 +78,8 @@ def issue_mkdir(command_and_arg, client_socket, eof_token):
     :param eof_token: a token to indicate the end of the message.
 """
 def issue_rm(command_and_arg, client_socket, eof_token):
-    client_socket.sendall(command_and_arg.encode()) 
-    print("Issueing RM command <{command_and_arg}> to server.")  
-    print(receive_message_ending_with_token(client_socket, 1024, eof_token).decode())
+    send_message_ending_with_token(client_socket, command_and_arg, eof_token)
+    print(receive_message_ending_with_token(client_socket, 1024, eof_token))
 
 """
     Sends the full ul command entered by the user to the server. 
@@ -91,17 +92,22 @@ def issue_rm(command_and_arg, client_socket, eof_token):
 """
 def issue_ul(command_and_arg, client_socket, eof_token):
     file_name = command_and_arg[len('ul'):].strip()
-    if not os.path.isfile(os.join(os.__file__, file_name)): #check existance of file
+    file_path = os.path.join(os.path.dirname(__file__), file_name)
+    if not os.path.isfile(file_path): #check existance of file
         print("Invalid entry. You entered a nonexistant filename! Exiting operation.")
         return
     
-    client_socket.sendall(command_and_arg.encode())
+    send_message_ending_with_token(client_socket, command_and_arg, eof_token)
 
-    with open(file_name, 'r') as file:
+    with open(file_path, 'rb') as file:
         content = file.read()
         while content:
-            client_socket.send(str(content).encode())
+            client_socket.sendall(str(content).encode())
             content = file.read()
+    
+    client_socket.sendall(eof_token);
+    print("Successfully sent file {} to server".format(file_name))    
+    print(receive_message_ending_with_token(client_socket, 1024, eof_token))
 
 """
     Sends the full dl command entered by the user to the server. Then, it receives the content of the file via the
@@ -120,13 +126,13 @@ def issue_dl(command_and_arg, client_socket, eof_token):
         print("Invalid entry. File with name {file_name} already exists in cwd. Exiting operation.")
         return
     
-    client_socket.sendall(command_and_arg.encode())  
+    send_message_ending_with_token(client_socket, command_and_arg, eof_token) 
 
-    with open(file_name, 'w') as file:
+    with open(os.path.join(os.path.dirname(__file__), file_name), 'w') as file:
         content = receive_message_ending_with_token(client_socket, 1024, eof_token)
         file.write(content)
     
-    print("Successfully recieved file from server: {client_socket.address}. New filename is {file_name}.\n receive_message_ending_with_token(client_socket, 1024, eof_token)")
+    print("Successfully recieved file from server. New filename is {}.".format(file_name))
 
 def main():
     HOST = "127.0.0.1"  # The server's hostname or IP address
@@ -144,18 +150,21 @@ def main():
     while True: #main execution loop
 
         # get user input
-        user_input = input("Please provide some commands and arguments, separated by a space").tolower()
+        user_input = input("Please provide some commands and arguments, separated by a space >").lower()
         
         # call the corresponding command function or exit
         if user_input == 'exit':
+            send_message_ending_with_token(s, 'exit', eof_token)
             break
         cmd = user_input.split(" ")[0]
         if cmd in command_dict:
+            print("Issuing {} command to server.".format(cmd))
             command_dict[cmd](user_input, s, eof_token)
         else:
-            print("Command not recognized, please try again. Command must start with: cd, mkdir, rm, ul, or dl.")
+            print("Command not recognized, please try again. Command must start with: cd, mkdir, rm, ul, or dl.\n")
         
-    print('Exiting the application.')
+    print('Closing socket and exiting the application.')
+    s.close()
 
 if __name__ == '__main__':
     main()

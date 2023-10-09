@@ -39,14 +39,17 @@ def generate_random_eof_token(eof_token_length=10):
 def receive_message_ending_with_token(active_socket, buffer_size, eof_token):
     data = bytearray()
     while True:                             # keep receiving until we get '<EOF>'
-        packet = active_socket.recv(1024)
+        packet = active_socket.recv(buffer_size)
         data.extend(packet)
 
-        if packet.decode()[-5:] == '<EOF>':
-            data = data[:-5]
+        if packet.decode()[-len(eof_token):] == eof_token:
+            data = data[:-len(eof_token)]
             break
     
     return data 
+
+def send_message_ending_with_token(active_socket, message, eof_token):
+    active_socket.sendall(str.encode(message + eof_token))
 
 """
     Handles the client cd commands. Reads the client command and changes the current_working_directory variable 
@@ -77,8 +80,9 @@ def handle_mkdir(current_working_directory, directory_name):
         if c in invalid_char:
             allowed = False
 
-    if (len(directory_name) > 260 or allowed ):
+    if (len(directory_name) > 260 or not allowed ):
         print("Invalid entry. Directory name contains illegal characters, or is too large.")
+        return
 
     os.chdir(current_working_directory)
     os.makedirs(directory_name)
@@ -94,13 +98,13 @@ def handle_rm(current_working_directory, object_name):
     os.chdir(current_working_directory)
 
     if os.path.isfile(object_name):
-        print("Removing file: {object_name}")
+        print("Removing file: {}".format(object_name))
         os.remove(object_name)
     elif os.path.isdir(object_name):
-        print("Removing directory and all subfolders: {object_name}")
+        print("Removing directory and all subfolders: {}".format(object_name))
         os.rmdir(object_name)
     else:
-        print("Invalid entry. {object_name} is neither a path nor a directory. Aborting operation.")
+        print("Invalid entry. {} is neither a path nor a directory. Aborting operation.".format(object_name))
 
 """
     Handles the client ul commands. First, it reads the payload, i.e. file content from the client, then creates the
@@ -113,11 +117,11 @@ def handle_rm(current_working_directory, object_name):
 """
 def handle_ul(current_working_directory, file_name, service_socket, eof_token):
     
-    with open(os.join(current_working_directory, file_name), 'w') as file:
-        content = receive_message_ending_with_token(service_socket, 1024, eof_token)
+    with open(os.path.join(current_working_directory, file_name), 'w') as file:
+        content = receive_message_ending_with_token(service_socket, 1024, eof_token).decode()
         file.write(content)
     
-    print("Successfully recieved file from client: {service_socket.address}. New fileneame is: {filename}")
+    print("Successfully recieved file from client. New fileneame is: {}".format(file_name))
 
 """
     Handles the client dl commands. First, it loads the given file as binary, then sends it to the client via the
@@ -129,15 +133,14 @@ def handle_ul(current_working_directory, file_name, service_socket, eof_token):
 """
 def handle_dl(current_working_directory, file_name, service_socket, eof_token):
     
-    with open(file_name, 'r') as file:
+    with open(os.path.join(current_working_directory, file_name), 'rb') as file:
         content = file.read()
         while content:
-            service_socket.send(str(content).encode())
+            service_socket.sendall(str(content).encode())
             content = file.read()
     
-    service_socket.send(str.encode(get_working_directory_info(current_working_directory)))
-
-    print("Successfully sent file {file_name} to client {service_socket.address}")
+    service_socket.sendall(str(eof_token).encode())
+    print("Successfully sent file {} to client.".format(file_name))
 
 """
 Object representing client thread. 
@@ -152,6 +155,10 @@ class ClientThread(Thread):
         self.cwd = os.path.dirname(__file__);
         self.eof_token = generate_random_eof_token();
 
+    def exit(self):
+        print("Client {} disconnected. Closing socket.".format(self.address))
+        self.service_socket.close()
+    
     def run(self):
         print ("Connection from : ", self.address)
 
@@ -159,8 +166,8 @@ class ClientThread(Thread):
         self.service_socket.sendall(str.encode(self.eof_token))
 
         # establish current working directory and send info        
-        self.service_socket.sendall(str.encode(get_working_directory_info(self.cwd)))
-
+        send_message_ending_with_token(self.service_socket, get_working_directory_info(self.cwd), self.eof_token)
+        
         #main execution loop
         while True:
             client_message = receive_message_ending_with_token(self.service_socket, 1024, self.eof_token).decode()
@@ -182,9 +189,9 @@ class ClientThread(Thread):
                 break
             
             # after every operation, send current dir info
-            self.service_socket.sendall(str.encode(get_working_directory_info(self.cwd)))
-
-        print('Connection closed from:', self.address)
+            send_message_ending_with_token(self.service_socket, get_working_directory_info(self.cwd), self.eof_token)
+        
+        self.exit()
 
 def main():
     HOST = "127.0.0.1"
