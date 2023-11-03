@@ -34,7 +34,7 @@ class MultiProcessingSolution:
         self.dataset_path = dataset_path
         self.dataset_size = dataset_size
         self.start_time = time.time()
-        self.dataset_columns = ["FlightDate", "Airline", "ArrDelay"]
+        self.dataset_columns = ["FlightDate", "Airline", "ArrDelay", "Quarter"]
         self.airlines = [] # list of custom airline objects
 
     """
@@ -81,13 +81,11 @@ class MultiProcessingSolution:
 
     # counts flights and groups based on airline
     def count_flights(self, chunk):
-        start_date = pd.to_datetime('2021-01-01')
-        end_date = pd.to_datetime('2021-03-31')
         airlines = []
 
         for airline in chunk['Airline'].unique():
-            flight_count = (chunk['Airline'] == airline).sum()
-            dep_count = ((pd.to_datetime(chunk["FlightDate"]) >= start_date) & (pd.to_datetime(chunk["FlightDate"]) <= end_date) & (chunk['ArrDelay'] < 0) & (chunk['Airline'] == airline)).sum()
+            flight_count = ((chunk['Airline'] == airline) & (chunk["Quarter"] == 1)).sum()
+            dep_count = ((chunk["Quarter"] == 1) & (chunk['ArrDelay'] < 0) & (chunk['Airline'] == airline)).sum()
             airlines.append(Airline(flights=flight_count, early_arrivals=dep_count, name=airline))             
 
         return airlines
@@ -97,7 +95,7 @@ if __name__ == '__main__':
     dataset_dir = "dataset"
     dataset_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), os.path.join(dataset_dir, dataset_filename))
     dataset_size = len(pd.read_csv(dataset_path, usecols=["FlightDate"]))
-    num_of_processes = 4
+    num_of_processes = 8
 
     print("{}s: Processing flights data of size {} with {} processes.".format(round(time.time(), 3), dataset_size, num_of_processes))
     solution = MultiProcessingSolution(num_of_processes=num_of_processes, dataset_path=dataset_path, dataset_size=dataset_size) #total should be about 6311871

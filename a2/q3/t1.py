@@ -35,7 +35,7 @@ class ThreadingSolution:
         self.dataset_size = dataset_size
         self.airlines = [] # list of custom airline objects
         self.start_time = time.time()
-        self.dataset_columns = ["FlightDate", "Airline", "ArrDelay"]  # only import the columns that are necessary 
+        self.dataset_columns = ["FlightDate", "Airline", "ArrDelay", "Quarter"]  # only import the columns that are necessary 
     
     """
     Returns the tuple of computed result and time taken. eg., ("I am final Result", 3.455)
@@ -55,7 +55,7 @@ class ThreadingSolution:
         print("{}s -- Finding all unique airline names.".format(round(time.time() - self.start_time, 3)))
 
         for airline in df['Airline'].unique():
-            flight_count = (df['Airline'] == airline).sum()
+            flight_count = ((df['Airline'] == airline) & (df["Quarter"] == 1)).sum()
             self.airlines.append(Airline(flights=flight_count, early_arrivals=0, name=airline))
         
         print("{}s -- All unique airline names found.".format(round(time.time() - self.start_time, 3)))
@@ -80,9 +80,7 @@ class ThreadingSolution:
     
     # helper method to filter out flights based on acceptance criteria reducing the counting effort
     def filter_csv(self, df):
-        start_date = pd.to_datetime('2021-01-01')
-        end_date = pd.to_datetime('2021-03-31')
-        filter = (pd.to_datetime(df["FlightDate"]) >= start_date) & (pd.to_datetime(df["FlightDate"]) <= end_date) & (df['ArrDelay'] < 0)  
+        filter = (df["Quarter"] == 1) & (df['ArrDelay'] < 0)  
         return df[filter]
     
     # helper method for splitting up the indexes of huge datasets depending on how many parallel mechanisms are needed
