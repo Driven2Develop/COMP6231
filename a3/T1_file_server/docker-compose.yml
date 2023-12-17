@@ -1,0 +1,41 @@
+# Task 1
+version: 'latest'
+
+services:
+  server:
+    image: af0e34376bfd
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T1\server.py:/scripts/server.py
+    #command: python scripts/server.py
+    ports:
+      - "65432:65432"
+
+  client1:
+    image: af0e34376bfd
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T1\client.py:/scripts/client.py
+    #command: python scripts/client.py
+    depends_on:
+      - server
+    ports:
+      - "8080:8080"
+
+  client2:
+    image: af0e34376bfd
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T1\client.py:/scripts/client.py:ro
+    depends_on:
+      - server
+    #command: python scripts/client.py 
+    ports:
+      - "8181:8181"
+  
+  client3:
+    image: af0e34376bfd
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T1\client.py:/scripts/client.py:ro
+    #command: python scripts/client.py 
+    ports:
+      - "8282:8282"
+    depends_on:
+      - server

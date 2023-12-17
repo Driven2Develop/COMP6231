@@ -34,7 +34,7 @@ class MPISolution:
         self.dataset_size = dataset_size
         self.airlines = [] # list of custom airline objects
         self.start_time = time.time()
-        self.dataset_columns = ["FlightDate", "Airline", "ArrDelay"] # only import the columns that are necessary 
+        self.dataset_columns = ["FlightDate", "Airline", "ArrDelay", "Quarter"] # only import the columns that are necessary 
 
     """
     Returns the tuple of computed result and time taken. eg., ("I am final Result", 3.455)
@@ -49,14 +49,17 @@ class MPISolution:
 
         start = rank * chunk_size
         end = start + chunk_size if rank < size - 1 else self.dataset_size
-
+        
+        print("Worker {} dispatched with processing dataset from index [{}, {}].".format(rank, start, end))
         results = comm.gather(self.count_flights(df.iloc[start:end]), root=0)
+        print(f"Results gathered worker {rank}. Sending to master.")
 
         if rank == 0:
             print("Iymen Abdella | 40218280 | COMP 6231 FALL 2023 | Assignment 2: Parallel Programming | Q3 T3")
 
             # merge results from workers
             results = list(chain.from_iterable(results))
+            print("Results gathered from all workers. Merging.")
 
             for airline in results:
                 if airline.name in [airline.name for airline in self.airlines]:
@@ -75,21 +78,19 @@ class MPISolution:
         
     # counts flights and groups based on airline
     def count_flights(self, chunk):
-        start_date = pd.to_datetime('2021-01-01')
-        end_date = pd.to_datetime('2021-03-31')
         airlines = []
 
         for airline in chunk['Airline'].unique():
-            flight_count = (chunk['Airline'] == airline).sum()
-            dep_count = ((pd.to_datetime(chunk["FlightDate"]) >= start_date) & (pd.to_datetime(chunk["FlightDate"]) <= end_date) & (chunk['ArrDelay'] < 0) & (chunk['Airline'] == airline)).sum()
+            flight_count = ((chunk['Airline'] == airline) & (chunk["Quarter"] == 1)).sum()
+            dep_count = ((chunk["Quarter"] == 1) & (chunk['ArrDelay'] < 0) & (chunk['Airline'] == airline)).sum()
             airlines.append(Airline(flights=flight_count, early_arrivals=dep_count, name=airline))             
 
         return airlines
     
 if __name__ == '__main__':
-    dataset_filename = "Combined_Flights_2021.csv"
-    dataset_dir = "dataset"
-    dataset_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), os.path.join(dataset_dir, dataset_filename))
+    dataset_filename = "sampled_flights_data_300k.csv"
+    dataset_dir = "datasets"
+    dataset_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), dataset_dir, dataset_filename)
     dataset_size = len(pd.read_csv(dataset_path, usecols=["FlightDate"]))
 
     solution = MPISolution(dataset_path=dataset_path, dataset_size=dataset_size) #total should be about 6311871

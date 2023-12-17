@@ -1,0 +1,36 @@
+version: 'latest'
+services:
+  mpi_master:
+    image: ozxx33/mpi4py-cluster-base
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T2_parallel_pandas\mpi:/mpi_python
+    command: "mpiexec -n 4 python mpi_python/scripts/q1t3.py"
+    networks:
+      - mpi_network
+
+  mpi_worker_1:
+    image: ozxx33/mpi4py-cluster-base
+    command: "mpiexec -n 4 python mpi_python/scripts/q1t3.py"
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T2_parallel_pandas\mpi:/mpi_python
+    networks:
+      - mpi_network
+
+  mpi_worker_2:
+    image: ozxx33/mpi4py-cluster-base
+    command: "mpiexec -n 4 python mpi_python/scripts/q1t3.py"
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T2_parallel_pandas\mpi:/mpi_python
+    networks:
+      - mpi_network
+
+  mpi_worker_3:
+    image: ozxx33/mpi4py-cluster-base
+    volumes:
+      - C:\Workspace\School\fall-2023\COMP6231_Distributed_Systems\homework\a3\T2_parallel_pandas\mpi:/mpi_python
+    command: "mpiexec -n 4 python mpi_python/scripts/q1t3.py"
+    networks:
+      - mpi_network
+
+networks:
+  mpi_network:
